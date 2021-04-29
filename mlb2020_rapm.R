@@ -3,6 +3,7 @@ library(dplyr)
 library(tidyr)
 library(glmnet)
 library(tidyverse)
+library(ggthemes)
 daily<-data.frame()
 range<-seq(as.Date("2019/03/20"),as.Date("2020/10/03"),by="day")
 for(i in c(1:length(range))) {
@@ -194,6 +195,8 @@ batter <-
                                                                                                   ((`1` - min) * 100 *
                                                                                                      prop / mean) + ((1 - prop) * mean((`1` - min) * 100 / mean)))
 
+ggplot(batter,aes(pa,prop))+geom_point()+theme_economist()+labs(x='Plate Appearances',y='Proportion of Raw RAPM not Regressed',title = 'Regression to the Mean Weighting Function')
+
 pitcher <-
   pitcher %>% left_join(pitcher %>% filter((log(pa, exp(
     .5
@@ -290,7 +293,7 @@ for(i in 1:max(pitcher_fin$pa)){
   pitcher_opp_pval<-pitcher_opp_pval%>%rbind(data.frame(pa=i,pval=opp_pval))  
 }
 
-ggplot(pitcher_opp_pval, aes(pa, pval)) + geom_point() + geom_smooth() + geom_hline(yintercept=.05)
+ggplot(pitcher_opp_pval, aes(pa, pval)) + geom_point() + geom_smooth() + geom_hline(yintercept=.05)+labs(x='Plate Appearance Cut Off',y='P-Value',title='Significance Level of Opponent wOBA in Predicting RAPM')+theme_economist()
 
 summary(lm(rapm~wOBA+`FIP-`,pitcher_fin))
 
@@ -300,40 +303,38 @@ for(i in 1:max(batter_fin$pa)){
   batter_opp_pval<-batter_opp_pval%>%rbind(data.frame(pa=i,pval=opp_pval))  
 }
 
-ggplot(batter_opp_pval, aes(pa, pval)) + geom_point() + geom_smooth() + geom_hline(yintercept=.05)
+ggplot(batter_opp_pval, aes(pa, pval)) + geom_point() + geom_smooth() + geom_hline(yintercept=.05)+labs(x='Plate Appearance Cut Off',y='P-Value',title='Significance Level of Opponent FIP- in Predicting RAPM')+theme_economist()
 
-summary(lm(rapm~wOBA+`FIP-`,batter_fin%>%filter(pa>10)))
+summary(lm(rapm~wOBA+`FIP-`,batter_fin))
 
 #it appears we do have something like a model which shows a player's talent with respect to their opponents
 #how does it predict future performance?
-#cor_diff_bat<-data.frame()
-#for(i in 1:max(batter_fin$pa)){
+cor_diff_bat<-data.frame()
+for(i in 1:max(batter_fin$pa)){
   bat_pred <-
-    batter_fin %>% select(id, Season, name, rapm, wOBA) %>% group_by(id, name) %>%
+    batter_fin %>% filter(pa>i) %>% select(id, Season, name, rapm, wOBA) %>% group_by(id, name) %>%
     summarise(f_rapm = rapm[2],
               f_woba = wOBA[2],
               s_woba = wOBA[1]) %>% na.omit() %>% ungroup()
-  #cor_diff<-
-  cor(bat_pred%>%select(-c(id,name)))#[3,1]-cor(bat_pred%>%select(-c(id,name)))[3,2]
-  #cor_diff_bat<-cor_diff_bat%>%rbind(data.frame(pa=i,n=nrow(bat_pred),cor_r=cor(bat_pred%>%select(-c(id,name)))[3,1],cor_p=cor(bat_pred%>%select(-c(id,name)))[3,2],cor_diff=cor_diff))
-#}
+  cor_diff<-cor(bat_pred%>%select(-c(id,name)))[3,1]-cor(bat_pred%>%select(-c(id,name)))[3,2]
+  cor_diff_bat<-cor_diff_bat%>%rbind(data.frame(pa=i,n=nrow(bat_pred),cor_r=cor(bat_pred%>%select(-c(id,name)))[3,1],cor_p=cor(bat_pred%>%select(-c(id,name)))[3,2],cor_diff=cor_diff))
+}
 
-#ggplot(cor_diff_bat%>%na.omit(), aes(pa, cor_diff,col=n)) + geom_point() + geom_smooth() + geom_hline(yintercept=0) + labs(title = 'Predicting Future wOBA with RAPM vs. wOBA', x = "Plate Appearance Cutoff", y = 'Correlation Difference')
-#summary((cor_diff_bat%>%na.omit())$cor_diff)
-#cor_diff_bat%>%na.omit()%>%summarise(mean_cor_r=mean(cor_r),mean_cor_p=mean(cor_p),mean_cor_diff=mean(cor_diff))
+ggplot(cor_diff_bat%>%na.omit(), aes(pa, cor_diff)) + geom_point() + geom_smooth() + geom_hline(yintercept=0) + labs(title = 'Predicting Future wOBA with RAPM vs. wOBA', x = "Plate Appearance Cutoff", y = 'Correlation Difference')+theme_economist()
+summary((cor_diff_bat%>%na.omit())$cor_diff)
+cor_diff_bat%>%na.omit()%>%summarise(mean_cor_r=mean(cor_r),mean_cor_p=mean(cor_p),mean_cor_diff=mean(cor_diff))
 
-#cor_diff_pitch<-data.frame()
-#for(i in 1:max(pitcher_fin$pa)){
+cor_diff_pitch<-data.frame()
+for(i in 1:max(pitcher_fin$pa)){
  pitch_pred <-
-    pitcher_fin %>% select(id, Season, name, rapm, `FIP-`) %>% group_by(id, name) %>%
+    pitcher_fin %>% filter(pa>i) %>% select(id, Season, name, rapm, `FIP-`) %>% group_by(id, name) %>%
     summarise(f_rapm = rapm[2],
               `f_FIP-` = `FIP-`[2],
               `s_FIP-` = `FIP-`[1]) %>% na.omit() %>% ungroup()
-  #cor_diff<-
-  cor(pitch_pred%>%select(-c(id,name)))#[3,1]+cor(pitch_pred%>%select(-c(id,name)))[3,2]
-  #cor_diff_pitch<-cor_diff_pitch%>%rbind(data.frame(pa=i,n=nrow(pitch_pred),cor_r=cor(pitch_pred%>%select(-c(id,name)))[3,1],cor_p=cor(pitch_pred%>%select(-c(id,name)))[3,2],cor_diff=cor_diff))
-#}
+  cor_diff<-cor(pitch_pred%>%select(-c(id,name)))[3,1]+cor(pitch_pred%>%select(-c(id,name)))[3,2]
+  cor_diff_pitch<-cor_diff_pitch%>%rbind(data.frame(pa=i,n=nrow(pitch_pred),cor_r=cor(pitch_pred%>%select(-c(id,name)))[3,1],cor_p=cor(pitch_pred%>%select(-c(id,name)))[3,2],cor_diff=cor_diff))
+}
 
-#ggplot(cor_diff_pitch%>%na.omit(), aes(pa, cor_diff,col=n)) + geom_point() + geom_smooth() + geom_hline(yintercept=0) + labs(title = 'Predicting Future FIP- with RAPM vs. FIP-', x = "Plate Appearance Cutoff", y = 'Correlation Difference')
-#summary((cor_diff_pitch%>%na.omit())$cor_diff)
-#cor_diff_pitch%>%na.omit()%>%summarise(mean_cor_r=mean(cor_r),mean_cor_p=mean(cor_p),mean_cor_diff=mean(cor_diff))
+ggplot(cor_diff_pitch%>%na.omit(), aes(pa, cor_diff)) + geom_point() + geom_smooth() + geom_hline(yintercept=0) + labs(title = 'Predicting Future FIP- with RAPM vs. FIP-', x = "Plate Appearance Cutoff", y = 'Correlation Difference')+theme_economist()
+summary((cor_diff_pitch%>%na.omit())$cor_diff)
+cor_diff_pitch%>%na.omit()%>%summarise(mean_cor_r=mean(cor_r),mean_cor_p=mean(cor_p),mean_cor_diff=mean(cor_diff))
