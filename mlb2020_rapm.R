@@ -338,3 +338,43 @@ for(i in 1:max(pitcher_fin$pa)){
 ggplot(cor_diff_pitch%>%na.omit(), aes(pa, cor_diff)) + geom_point() + geom_smooth() + geom_hline(yintercept=0) + labs(title = 'Predicting Future FIP- with RAPM vs. FIP-', x = "Plate Appearance Cutoff", y = 'Correlation Difference')+theme_economist()
 summary((cor_diff_pitch%>%na.omit())$cor_diff)
 cor_diff_pitch%>%na.omit()%>%summarise(mean_cor_r=mean(cor_r),mean_cor_p=mean(cor_p),mean_cor_diff=mean(cor_diff))
+               
+###########COMMENTS
+l <-
+  pitcher %>% group_by(id, cat) %>% summarise(
+    pa1 = pa[2],
+    pa2 = pa[1],
+    raw_rapm1 = raw_rapm[2],
+    raw_rapm2 = raw_rapm[1]
+  ) %>% na.omit()
+
+autocor_pitch <- c()
+for (i in 1:max(l$pa2)) {
+  l_pred <-
+    l %>% filter(pa1 > i & pa2 > i)
+  autocor <- cor(l_pred$raw_rapm1, l_pred$raw_rapm2)
+  autocor_pitch <- c(autocor_pitch, autocor)
+}
+
+ggplot(data.frame(pa = 1:length(autocor_pitch), cor = autocor_pitch), aes(pa, cor)) +
+  geom_point() + geom_smooth() + labs(title = 'Pitcher Raw RAPM Autocorrelation by Plate Appearances in both Seasons', x = 'Plate Appearance Cutoff', y = 'Correlation')
+
+k <-
+  batter %>% group_by(id, cat) %>% summarise(
+    pa1 = pa[2],
+    pa2 = pa[1],
+    raw_rapm1 = raw_rapm[2],
+    raw_rapm2 = raw_rapm[1]
+  ) %>% na.omit()
+
+autocor_bat <- c()
+for (i in seq(1,max(k$pa2),25)) {
+  k_pred <-
+    k %>% filter(pa1 > i & pa2 > i & pa1 <= i+10 & pa2 < i+10)
+  autocor <- cor(k_pred$raw_rapm1, k_pred$raw_rapm2)
+  autocor_bat <- c(autocor_bat, autocor)
+}
+
+ggplot(data.frame(pa = 1:length(autocor_bat), cor = autocor_bat), aes(pa, cor)) +
+  geom_point() + geom_smooth() + labs(title = 'Batter Raw RAPM Autocorrelation by Plate Appearances in both Seasons', x = 'Plate Appearance Cutoff', y = 'Correlation')
+                        
